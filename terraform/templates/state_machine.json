@@ -1,0 +1,169 @@
+{
+  "Comment": "Music Streaming Data Pipeline — validate → transform → ingest → archive",
+  "StartAt": "ValidateStreams",
+  "States": {
+
+    "ValidateStreams": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${validation_job_name}",
+        "Arguments": {
+          "--bucket": "${bucket_name}",
+          "--input_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.validation_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "MoveToValidationDeadLetter",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "TransformKPIs"
+    },
+
+    "TransformKPIs": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${transformation_job_name}",
+        "Arguments": {
+          "--bucket": "${bucket_name}",
+          "--input_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.transform_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "MoveToTransformDeadLetter",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "IngestToDynamo"
+    },
+
+    "IngestToDynamo": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${ingestion_job_name}",
+        "Arguments": {
+          "--bucket": "${bucket_name}",
+          "--input_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.ingest_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "MoveToIngestDeadLetter",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "ArchiveSourceFile"
+    },
+
+    "ArchiveSourceFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "CopySource.$": "States.Format('${bucket_name}/{}', $.detail.object.key)",
+        "Key.$": "States.Format('archive/{}/{}', $.transform_result.JobRunState, States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
+      },
+      "ResultPath": "$.archive_result",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineSucceeded",
+          "ResultPath": "$.archive_error"
+        }
+      ],
+      "Next": "DeleteSourceFile"
+    },
+
+    "DeleteSourceFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:deleteObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "Key.$": "$.detail.object.key"
+      },
+      "ResultPath": null,
+      "Next": "PipelineSucceeded"
+    },
+
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+
+    "MoveToValidationDeadLetter": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "CopySource.$": "States.Format('${bucket_name}/{}', $.detail.object.key)",
+        "Key.$": "States.Format('dead-letter/validation-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
+      },
+      "ResultPath": null,
+      "Next": "PipelineFailed"
+    },
+
+    "MoveToTransformDeadLetter": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "CopySource.$": "States.Format('${bucket_name}/{}', $.detail.object.key)",
+        "Key.$": "States.Format('dead-letter/transform-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
+      },
+      "ResultPath": null,
+      "Next": "PipelineFailed"
+    },
+
+    "MoveToIngestDeadLetter": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "CopySource.$": "States.Format('${bucket_name}/{}', $.detail.object.key)",
+        "Key.$": "States.Format('dead-letter/ingest-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
+      },
+      "ResultPath": null,
+      "Next": "PipelineFailed"
+    },
+
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Error": "PipelineError",
+      "Cause": "Pipeline failed — check dead-letter prefix and CloudWatch logs for details"
+    }
+  }
+}
