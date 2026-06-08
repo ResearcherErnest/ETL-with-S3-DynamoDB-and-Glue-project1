@@ -1,0 +1,27 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfplan
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# AWS credentials — never commit
+.aws/
+credentials
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Raw data — large CSVs, managed outside version control
+data/songs/
+data/users/
+data/streams/
