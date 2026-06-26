@@ -4,50 +4,7 @@
 
 ### High-Level Architecture
 
-```mermaid
-flowchart TD
-    CSV[/"CSV Stream Files\nstreams1-3.csv · ~11,347 events each"/]
-
-    subgraph S3["Amazon S3 — music-streaming-pipeline-{account_id}"]
-        direction TB
-        RAW["raw/streams/"]
-        REF["raw/reference/\nsongs.csv · users.csv"]
-    end
-
-    EB["Amazon EventBridge\nObject Created Rule\nprefix: raw/streams/"]
-    SF["AWS Step Functions\nmusic-streaming-pipeline\nSTANDARD · X-Ray enabled"]
-
-    subgraph Glue["AWS Glue ETL"]
-        GV["1  Validation Job\nPython Shell · 0.0625 DPU"]
-        GT["2  Transformation Job\nPySpark · G.1X × 2 workers"]
-        GI["3  Ingestion Job\nPython Shell · 0.0625 DPU"]
-    end
-
-    subgraph DDB["Amazon DynamoDB"]
-        KPI[("music_kpis\nPK: genre · SK: date")]
-        TOP[("music_top_genres\nPK: record_type · SK: date")]
-    end
-
-    ARCH["S3 archive/\nGlacier after 90 days"]
-    DL["S3 dead-letter/\nexpires after 7 days"]
-
-    CSV -->|upload| RAW
-    RAW -->|"S3 EventBridge notification"| EB
-    EB -->|StartExecution| SF
-    SF --> GV
-    GV -->|PASS| GT
-    GT -->|PASS| GI
-    GI -->|BatchWriteItem| KPI
-    GI -->|BatchWriteItem| TOP
-    GI -->|"copy & delete"| ARCH
-    GV -->|FAIL| DL
-    GT -->|FAIL| DL
-    GI -->|FAIL| DL
-    REF -.->|"reference lookup"| GV
-    REF -.->|"join"| GT
-```
-
----
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/de352700-c9d0-49ad-925f-5d965b3650ee" />
 
 ### Pipeline Orchestration
 
