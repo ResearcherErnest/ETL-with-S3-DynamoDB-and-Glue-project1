@@ -2,7 +2,7 @@
 
 resource "aws_s3_bucket" "pipeline" {
   bucket        = local.bucket_name
-  force_destroy = true  # allows `terraform destroy` to delete non-empty bucket
+  force_destroy = true # allows `terraform destroy` to delete non-empty bucket
 }
 
 resource "aws_s3_bucket_versioning" "pipeline" {

@@ -16,10 +16,10 @@ resource "aws_sfn_state_machine" "pipeline" {
   definition = templatefile(
     "${path.module}/templates/state_machine.json",
     {
-      bucket_name           = aws_s3_bucket.pipeline.id
-      validation_job_name   = aws_glue_job.validation.name
+      bucket_name             = aws_s3_bucket.pipeline.id
+      validation_job_name     = aws_glue_job.validation.name
       transformation_job_name = aws_glue_job.transformation.name
-      ingestion_job_name    = aws_glue_job.dynamo_ingestion.name
+      ingestion_job_name      = aws_glue_job.dynamo_ingestion.name
     }
   )
 
