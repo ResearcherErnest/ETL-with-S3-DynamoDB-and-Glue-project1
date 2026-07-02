@@ -1,10 +1,3 @@
-# ── Glue Catalog Database ──────────────────────────────────────────────────────
-
-resource "aws_glue_catalog_database" "music" {
-  name        = "music_streaming_db"
-  description = "Glue catalog database for the music streaming pipeline"
-}
-
 # ── CloudWatch Log Group for continuous Glue logging ──────────────────────────
 
 resource "aws_cloudwatch_log_group" "glue_jobs" {
@@ -57,16 +50,16 @@ resource "aws_glue_job" "transformation" {
   number_of_workers = var.glue_num_workers
 
   default_arguments = {
-    "--bucket"                             = aws_s3_bucket.pipeline.id
-    "--TempDir"                            = "s3://${aws_s3_bucket.pipeline.id}/glue-temp/"
-    "--enable-metrics"                     = "true"
-    "--enable-continuous-cloudwatch-log"   = "true"
-    "--continuous-log-logGroup"            = aws_cloudwatch_log_group.glue_jobs.name
-    "--enable-spark-ui"                    = "true"
-    "--spark-event-logs-path"              = "s3://${aws_s3_bucket.pipeline.id}/glue-temp/spark-logs/"
-    "--job-bookmark-option"                = "job-bookmark-enable"
-    "--dynamodb_kpis_table"                = var.dynamodb_kpis_table
-    "--dynamodb_top_genres_table"          = var.dynamodb_top_genres_table
+    "--bucket"                           = aws_s3_bucket.pipeline.id
+    "--TempDir"                          = "s3://${aws_s3_bucket.pipeline.id}/glue-temp/"
+    "--enable-metrics"                   = "true"
+    "--enable-continuous-cloudwatch-log" = "true"
+    "--continuous-log-logGroup"          = aws_cloudwatch_log_group.glue_jobs.name
+    "--enable-spark-ui"                  = "true"
+    "--spark-event-logs-path"            = "s3://${aws_s3_bucket.pipeline.id}/glue-temp/spark-logs/"
+    "--job-bookmark-option"              = "job-bookmark-enable"
+    "--dynamodb_kpis_table"              = var.dynamodb_kpis_table
+    "--dynamodb_top_genres_table"        = var.dynamodb_top_genres_table
   }
 
   depends_on = [aws_s3_object.transformation_script]

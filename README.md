@@ -124,7 +124,6 @@ graph TD
         GVAL["validation_job\nPython Shell · retry 0 · 60s timeout"]
         GTFM["transformation_job\nPySpark Glue 4.0 · retry 1"]
         GING["dynamodb_ingestion_job\nPython Shell · retry 2 · 60s timeout"]
-        CDB["Glue Catalog DB\nmusic_streaming_db"]
     end
 
     subgraph Orchestration["Orchestration & Events"]
@@ -144,7 +143,6 @@ graph TD
     GLUETF --> GVAL
     GLUETF --> GTFM
     GLUETF --> GING
-    GLUETF --> CDB
     SFTF --> SM
     TMPL --> SM
     EBTF --> RULE
@@ -211,7 +209,7 @@ AWSProject1/
 │   ├── s3.tf                               bucket, versioning, SSE, lifecycle, script uploads
 │   ├── iam.tf                              Glue / Step Functions / EventBridge IAM roles
 │   ├── dynamodb.tf                         music_kpis + music_top_genres + GSI + TTL
-│   ├── glue.tf                             Glue catalog DB + 3 job definitions
+│   ├── glue.tf                             3 Glue job definitions + log group
 │   ├── step_functions.tf                   state machine + CloudWatch log group
 │   ├── eventbridge.tf                      S3 trigger rule -> Step Functions target
 │   └── templates/
