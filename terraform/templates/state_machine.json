@@ -133,7 +133,7 @@
         "Key.$": "States.Format('dead-letter/validation-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
       },
       "ResultPath": null,
-      "Next": "PipelineFailed"
+      "Next": "DeleteFailedSourceFile"
     },
 
     "MoveToTransformDeadLetter": {
@@ -145,7 +145,7 @@
         "Key.$": "States.Format('dead-letter/transform-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
       },
       "ResultPath": null,
-      "Next": "PipelineFailed"
+      "Next": "DeleteFailedSourceFile"
     },
 
     "MoveToIngestDeadLetter": {
@@ -157,6 +157,24 @@
         "Key.$": "States.Format('dead-letter/ingest-errors/{}', States.ArrayGetItem(States.StringSplit($.detail.object.key, '/'), States.MathAdd(States.ArrayLength(States.StringSplit($.detail.object.key, '/')), -1)))"
       },
       "ResultPath": null,
+      "Next": "DeleteFailedSourceFile"
+    },
+
+    "DeleteFailedSourceFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:deleteObject",
+      "Parameters": {
+        "Bucket": "${bucket_name}",
+        "Key.$": "$.detail.object.key"
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed",
+          "ResultPath": "$.delete_error"
+        }
+      ],
       "Next": "PipelineFailed"
     },
 

@@ -3,7 +3,7 @@ Glue ETL (PySpark) job — join streams + songs + users and compute all 6 KPI se
 
 Arguments (Glue job args):
     --bucket      S3 bucket name
-    --input_key   S3 key of the triggering stream file (used for date extraction)
+    --input_key   S3 key of the validated triggering stream file (the only file read)
 
 Outputs written to S3:
     processed/<listen_date>/genre_kpis/     — per-genre per-day KPI Parquet
@@ -47,12 +47,13 @@ def log(level: str, msg: str, **kw):
 # ── Read ───────────────────────────────────────────────────────────────────────
 
 def read_streams() -> "DataFrame":
-    # Wildcard read — handles multiple stream files landing before the job runs
+    # Read only the validated triggering file — other objects under raw/streams/
+    # may not have passed validation (each upload gets its own execution)
     df = (
         spark.read
         .option("header", "true")
         .option("inferSchema", "false")
-        .csv(f"s3://{BUCKET}/raw/streams/streams*.csv")
+        .csv(f"s3://{BUCKET}/{INPUT_KEY}")
     )
     df = (
         df
@@ -147,10 +148,14 @@ def compute_top_3_songs(df) -> "DataFrame":
         df.groupBy("track_genre", "listen_date", "track_id", "track_name")
         .agg(F.count("*").alias("song_listen_count"))
     )
-    w = Window.partitionBy("track_genre", "listen_date").orderBy(F.desc("song_listen_count"))
+    # row_number (not dense_rank) caps the list at exactly 3 — ties broken by
+    # track_id so the result is deterministic and the item stays small
+    w = Window.partitionBy("track_genre", "listen_date").orderBy(
+        F.desc("song_listen_count"), F.col("track_id")
+    )
     ranked = (
         song_plays
-        .withColumn("rank", F.dense_rank().over(w))
+        .withColumn("rank", F.row_number().over(w))
         .filter(F.col("rank") <= 3)
     )
     # Collect into a JSON string per genre/date — simpler DynamoDB ingestion
@@ -176,10 +181,13 @@ def compute_top_5_genres(df) -> "DataFrame":
         df.groupBy("listen_date", "track_genre")
         .agg(F.count("*").alias("genre_listen_count"))
     )
-    w = Window.partitionBy("listen_date").orderBy(F.desc("genre_listen_count"))
+    # row_number caps at exactly 5; genre name breaks ties deterministically
+    w = Window.partitionBy("listen_date").orderBy(
+        F.desc("genre_listen_count"), F.col("track_genre")
+    )
     return (
         daily_genre_plays
-        .withColumn("rank", F.dense_rank().over(w))
+        .withColumn("rank", F.row_number().over(w))
         .filter(F.col("rank") <= 5)
         .orderBy("listen_date", "rank")
     )
